@@ -86,12 +86,45 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
     }
     
     // MARK: - Private
-    
+    @State private var pageHeight:CGFloat = 0
     private var mainContent: some View {
-        ZStack {
-            backgroundColor
-            currentPages
-            button
+        ScrollViewReader{
+            sp in
+            ScrollView{
+                ZStack {
+                    backgroundColor
+                    currentPages.padding([.bottom],200)
+                    ZStack {
+                        shape
+                        Button(action: {
+                            let ni = nextIndex
+                            DispatchQueue.main.asyncAfter(deadline:.now() + 0.5){
+                                withAnimation {
+                                    sp.scrollTo(ni)
+                                }
+                            }
+                            
+                            tapAction()
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .foregroundColor(isAnimated ? .clear : circleColor)
+                                    .frame(width: 2 * radius, height: 2 * radius)
+                                nextImage
+                            }
+                        }
+                        .disabled(isAnimated)
+                    }
+                    .offset(y: pageHeight/2 - 100)
+                }.overlay(
+                    GeometryReader{
+                        gp in
+                        Color.clear.onAppear{
+                            pageHeight = gp.size.height
+                        }
+                    }
+                )
+            }
         }
     }
     
@@ -99,23 +132,7 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
         AnimatableShape(progress: progress, radius: radius, limit: limit, direction: direction)
             .foregroundColor(circleColor)
     }
-    
-    private var button: some View {
-        ZStack {
-            shape
-            Button(action: tapAction) {
-                ZStack {
-                    Circle()
-                        .foregroundColor(isAnimated ? .clear : circleColor)
-                        .frame(width: 2 * radius, height: 2 * radius)
-                    nextImage
-                }
-            }
-            .disabled(isAnimated)
-        }
-        .offset(y: 300)
-    }
-    
+
     private var nextImage: some View {
         Image(systemName: nextIcon)
             .resizable()
