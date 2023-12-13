@@ -73,16 +73,23 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
             print("Warning: Add more pages.")
         }
     }
-    
+    @State private var safeTopSize:CGFloat = 0
     public var body: some View {
-        mainContent
-            .edgesIgnoringSafeArea(.vertical)
-            .onChange(of: currentIndex) { _ in
-                currentPageChanged()
+        GeometryReader{
+            gp in
+            ZStack{
+                mainContent
+                    .edgesIgnoringSafeArea(.vertical)
+                    .onChange(of: currentIndex) { _ in
+                        currentPageChanged()
+                    }
+                    .onAnimationCompleted(for: progress) {
+                        animationCompleted()
+                    }
+            }.onAppear{
+                safeTopSize = gp.safeAreaInsets.top
             }
-            .onAnimationCompleted(for: progress) {
-                animationCompleted()
-            }
+        }
     }
     
     // MARK: - Private
@@ -101,19 +108,24 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
     }
     
     private var button: some View {
-        ZStack {
-            shape
-            Button(action: tapAction) {
+        GeometryReader{
+            gp in
+            if isScrolled2Bottom{
                 ZStack {
-                    Circle()
-                        .foregroundColor(isAnimated ? .clear : circleColor)
-                        .frame(width: 2 * radius, height: 2 * radius)
-                    nextImage
-                }
+                    shape
+                    Button(action: tapAction) {
+                        ZStack {
+                            Circle()
+                                .foregroundColor(isAnimated ? .clear : circleColor)
+                                .frame(width: 2 * radius, height: 2 * radius)
+                            nextImage
+                        }
+                    }
+                    .disabled(isAnimated)
+                }.offset(y: gp.size.height / 2 - 150).transition(.opacity)
             }
-            .disabled(isAnimated)
+                
         }
-        .offset(y: 300)
     }
     
     private var nextImage: some View {
@@ -123,7 +135,8 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
             .frame(width: 10, height: 20)
             .foregroundColor(backgroundColor)
     }
-    
+    @State private var isScrolled2Bottom = false
+    @State private var contentHeight:CGFloat  = 0
     private var currentPages: some View {
         let maxXOffset: CGFloat = UIScreen.main.bounds.width
         let maxYOffset: CGFloat = 40.0
@@ -131,16 +144,41 @@ public struct ConcentricOnboardingView<Content>: View, Animatable where Content:
         
         return ZStack {
             if pageContents.count > 0 {
-                pageContents[currentIndex].view
+                ScrollViewReader{
+                    sp in
+                    ScrollView{
+                        VStack{
+                            Color.clear.frame(height: safeTopSize).id("top")
+                            pageContents[currentIndex].view.frame(maxWidth:.infinity)
+                        }.padding([.bottom],200).background(GeometryReader{
+                            gp in
+                            Color.clear.onChange(of: gp.frame(in: .global).maxY){
+                                newVal in
+                                withAnimation {
+                                    isScrolled2Bottom = newVal - contentHeight <= 300
+                                }
+                            }
+                        })
+                    }.background(GeometryReader{
+                        gp in
+                        Color.clear.onAppear{
+                            contentHeight = gp.size.height
+                        }
+                    })
                     .scaleEffect(isAnimated ? 2 / 3 : 1)
                     .offset(x: isAnimated ? coeff * maxXOffset : 0,
                             y: isAnimated ? maxYOffset : 0)
-                    .animation(isAnimated ? fullAnimation : .none)
+                    .animation(isAnimated ? fullAnimation : .none).onChange(of: currentIndex){
+                        _ in
+                        sp.scrollTo("top")
+                    }
+                }
             }
             
             if pageContents.count > 1 {
-                pageContents[nextIndex].view
-                    .scaleEffect(isAnimated ? 1 : 2 / 3)
+                ScrollView{
+                    pageContents[nextIndex].view.padding([.top],safeTopSize).padding([.bottom],200)
+                }.scaleEffect(isAnimated ? 1 : 2 / 3)
                     .offset(x: isAnimated ? 0 : -coeff * maxXOffset,
                             y: isAnimated ? 0 : maxYOffset)
                     .animation(isAnimated ? fullAnimation : .none)
